@@ -1,0 +1,22 @@
+*** RECEIPT ***
+
+Coffee Shop #789
+Phoenix, AZ
+
+Date: Jan 20, 2025 3:45 PM
+Cashier: Alex
+
+ITEMS:
+1x Large Coffee        $5.50
+1x Croissant          $4.25
+1x Cookie             $2.50
+
+Subtotal:  $12.25
+Tax:       $1.05
+TOTAL:     $13.30
+
+Payment Method: Credit Card ****5678
+Transaction ID: TXN-20250120-1545
+
+Thank you for your business!
+Have a great day!

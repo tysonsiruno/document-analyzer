@@ -1,0 +1,24 @@
+SERVICE AGREEMENT
+
+Effective Date: January 20, 2025
+
+BETWEEN:
+Client: Test Corporation
+Provider: Tyson Siruno
+
+TERMS AND CONDITIONS:
+1. Services: Software development and automation
+2. Duration: 3 months (Jan 20 - Apr 20, 2025)
+3. Compensation: $5,000 per month
+4. Payment Schedule: Net 15
+5. Termination: 30 days written notice
+6. Intellectual Property: All work product owned by client
+7. Confidentiality: All information remains confidential
+
+RESPONSIBILITIES:
+Provider shall deliver high-quality automation workflows
+Client shall provide necessary access and information
+
+Signatures:
+Provider: _______________  Date: _______________
+Client: _______________  Date: _______________

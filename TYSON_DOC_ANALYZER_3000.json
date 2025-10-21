@@ -1,0 +1,690 @@
+{
+  "name": "Tyson's Intelligent Document Analyzer 3000",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "upload-document",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000001",
+      "name": "Webhook: Upload Document",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        460
+      ],
+      "webhookId": "tyson-doc-upload",
+      "notes": "Production webhook endpoint for document uploads"
+    },
+    {
+      "parameters": {
+        "jsCode": "// WEBHOOK-ENABLED DOCUMENT PREPROCESSOR\n// Handles real file uploads from webhook\n\n// Get uploaded file data\nconst uploadedFile = $input.item.binary?.data;\nconst jsonData = $input.item.json;\n\nlet rawText = '';\nlet fileName = 'unknown';\nlet fileType = 'text/plain';\n\n// Check if file was uploaded as binary\nif (uploadedFile) {\n  fileName = uploadedFile.fileName || 'uploaded_file';\n  fileType = uploadedFile.mimeType || 'application/octet-stream';\n  \n  // If it's a text file, extract directly\n  if (fileType.includes('text/plain') || fileType.includes('text')) {\n    rawText = Buffer.from(uploadedFile.data, 'base64').toString('utf-8');\n  } else {\n    rawText = '[FILE UPLOADED - OCR PROCESSING NEEDED]';\n  }\n}\n// Or check if text was sent in JSON body\nelse if (jsonData?.text || jsonData?.content) {\n  rawText = jsonData.text || jsonData.content;\n  fileName = jsonData.fileName || 'text_input';\n}\n// Or use sample data for testing\nelse {\n  // Keep the original sample documents for testing\n  const sampleDocuments = [\n    {\n      type: 'invoice',\n      text: `INVOICE #INV-2025-0042\\n\\nBill To: Tyson Siruno\\n123 Innovation Drive\\nPhoenix, AZ 85001\\n\\nDate: January 15, 2025\\nDue: February 15, 2025\\n\\nITEMS:\\n1. N8N Pro Subscription - $50.00\\n2. Claude API Credits - $125.50\\n3. Premium Workflow Templates - $75.00\\n\\nSubtotal: $250.50\\nTax (8.6%): $21.54\\nTOTAL: $272.04\\n\\nVendor: AutomationPro LLC\\nPayment Terms: Net 30`\n    },\n    {\n      type: 'contract',\n      text: `SERVICE AGREEMENT\\n\\nThis Agreement entered on January 10, 2025\\n\\nBETWEEN:\\nParty A: Tyson Siruno (\"The Automation Wizard\")\\nParty B: Innovation Consulting Inc.\\n\\nTERMS:\\n1. Tyson will provide N8N workflow automation services\\n2. Contract Duration: 6 weeks (Jan 10 - Feb 21, 2025)\\n3. Compensation: Training + potential position\\n4. Hours: 10-20 hours per week\\n5. Work Location: Remote or on-site studio\\n6. Termination: Either party with 7 days notice\\n7. Confidentiality: All work product remains confidential\\n8. Ownership: Client owns all created workflows\\n\\nNote: This is an unpaid internship focused on skill development.\\n\\nSignatures: [Pending]`\n    },\n    {\n      type: 'receipt',\n      text: `*** RECEIPT ***\\n\\nStarbucks Coffee #4521\\n456 Main Street\\nPhoenix, AZ\\n\\nDate: Jan 20, 2025 8:42 AM\\nCashier: Sarah\\n\\n1x Grande Latte        $5.25\\n1x Breakfast Sandwich  $6.50\\n1x Tyson's Fuel (Energy Bar) $3.25\\n\\nSubtotal:  $15.00\\nTax:       $1.29\\nTOTAL:     $16.29\\n\\nPaid: Credit Card ****1234\\n\\nThank you! - Powered by caffeine for coding`\n    }\n  ];\n  \n  const randomDoc = sampleDocuments[Math.floor(Math.random() * sampleDocuments.length)];\n  rawText = randomDoc.text;\n  fileName = 'sample_' + randomDoc.type;\n}\n\nconst now = new Date();\n\nreturn [{\n  json: {\n    documentId: `DOC-${now.getTime()}`,\n    fileName: fileName,\n    fileType: fileType,\n    rawText: rawText,\n    receivedAt: now.toISOString(),\n    fileSize: rawText.length,\n    processingStarted: now.toISOString(),\n    uploadedBy: jsonData?.uploadedBy || \"API User\",\n    systemVersion: \"3000\",\n    metadata: {\n      source: uploadedFile ? \"File Upload\" : (jsonData?.text ? \"Text Input\" : \"Sample Data\"),\n      environment: \"Production\",\n      webhookReceived: true\n    }\n  },\n  binary: uploadedFile ? { data: uploadedFile } : undefined\n}];"
+      },
+      "id": "00000000-0000-0000-0000-000000000002",
+      "name": "Document Preprocessor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        460
+      ],
+      "notes": "Handles webhook uploads, text input, or sample data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// TYSON'S AI-POWERED DOCUMENT CLASSIFIER\n// Analyzes document and determines type\n\nconst text = $input.item.json.rawText.toLowerCase();\nlet documentType = 'unknown';\nlet confidence = 0;\nlet reasoning = '';\n\n// Invoice detection\nif (text.includes('invoice') || (text.includes('bill to') && text.includes('total'))) {\n  documentType = 'invoice';\n  confidence = 95;\n  reasoning = 'Detected invoice keywords: invoice number, bill to, total amount';\n}\n// Contract detection  \nelse if (text.includes('agreement') || text.includes('contract') || text.includes('party a')) {\n  documentType = 'contract';\n  confidence = 92;\n  reasoning = 'Detected contract language: agreement, parties, terms';\n}\n// Receipt detection\nelse if (text.includes('receipt') || (text.includes('cashier') && text.includes('paid'))) {\n  documentType = 'receipt';\n  confidence = 88;\n  reasoning = 'Detected receipt indicators: cashier, payment method, itemized list';\n}\nelse {\n  documentType = 'unknown';\n  confidence = 45;\n  reasoning = 'Could not confidently classify document type';\n}\n\n// Tyson's Easter Egg: Special detection\nlet tysonBonus = '';\nif (text.includes('tyson')) {\n  tysonBonus = '\ud83c\udfaf TYSON DETECTED IN DOCUMENT! +10 Awesome Points';\n  confidence = Math.min(confidence + 5, 100);\n}\n\nreturn [{\n  json: {\n    ...($input.item.json),\n    classification: {\n      documentType: documentType,\n      confidence: confidence,\n      reasoning: reasoning,\n      tysonBonus: tysonBonus,\n      classifiedAt: new Date().toISOString(),\n      classifier: \"Tyson's AI Classifier v3000\"\n    }\n  }\n}];"
+      },
+      "id": "00000000-0000-0000-0000-000000000003",
+      "name": "AI Document Classifier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        460
+      ],
+      "notes": "Determines what type of document this is"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.classification.documentType }}",
+                    "rightValue": "invoice",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "invoice"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.classification.documentType }}",
+                    "rightValue": "contract",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "contract"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.classification.documentType }}",
+                    "rightValue": "receipt",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "receipt"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "00000000-0000-0000-0000-000000000004",
+      "name": "Route by Document Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        900,
+        460
+      ],
+      "notes": "Smart routing to specialized processors"
+    },
+    {
+      "parameters": {
+        "jsCode": "// INVOICE PROCESSING ENGINE\n// Extracts structured data from invoices\n\nconst text = $input.item.json.rawText;\nconst lines = text.split('\\n');\n\n// Extract invoice number\nconst invoiceMatch = text.match(/INVOICE #([A-Z0-9-]+)/);\nconst invoiceNumber = invoiceMatch ? invoiceMatch[1] : 'UNKNOWN';\n\n// Extract dates\nconst dateMatch = text.match(/Date: ([A-Za-z0-9, ]+)/);\nconst dueMatch = text.match(/Due: ([A-Za-z0-9, ]+)/);\n\n// Extract amounts\nconst totalMatch = text.match(/TOTAL: \\$([0-9,\\.]+)/);\nconst subtotalMatch = text.match(/Subtotal: \\$([0-9,\\.]+)/);\nconst taxMatch = text.match(/Tax[^:]*: \\$([0-9,\\.]+)/);\n\n// Extract vendor\nconst vendorMatch = text.match(/Vendor: ([^\\n]+)/);\n\n// Parse line items\nconst itemMatches = text.match(/\\d+\\.\\s+([^-]+)\\s+-\\s+\\$([0-9,\\.]+)/g) || [];\nconst items = itemMatches.map(item => {\n  const match = item.match(/\\d+\\.\\s+([^-]+)\\s+-\\s+\\$([0-9,\\.]+)/);\n  return {\n    description: match[1].trim(),\n    amount: parseFloat(match[2].replace(',', ''))\n  };\n});\n\n// Validation\nconst subtotal = subtotalMatch ? parseFloat(subtotalMatch[1].replace(',', '')) : 0;\nconst tax = taxMatch ? parseFloat(taxMatch[1].replace(',', '')) : 0;\nconst total = totalMatch ? parseFloat(totalMatch[1].replace(',', '')) : 0;\n\nconst calculatedTotal = subtotal + tax;\nconst amountMatch = Math.abs(calculatedTotal - total) < 0.01;\n\nlet validationStatus = 'valid';\nlet validationMessages = [];\n\nif (!amountMatch) {\n  validationStatus = 'warning';\n  validationMessages.push(`Math doesn't add up! Subtotal ($${subtotal}) + Tax ($${tax}) = $${calculatedTotal.toFixed(2)}, but Total shows $${total}`);\n}\n\nif (items.length === 0) {\n  validationStatus = 'warning';\n  validationMessages.push('No line items detected');\n}\n\n// Tyson's Special Feature: Invoice Quality Grade\nlet qualityGrade = 'A';\nlet tysonComment = '';\n\nif (amountMatch && items.length >= 3) {\n  qualityGrade = 'A+';\n  tysonComment = '\ud83d\udd25 This invoice is hotter than a Phoenix summer! Perfect formatting.';\n} else if (amountMatch && items.length > 0) {\n  qualityGrade = 'A';\n  tysonComment = '\u2728 Solid invoice. Tyson approves!';\n} else if (!amountMatch) {\n  qualityGrade = 'C';\n  tysonComment = '\u26a0\ufe0f Houston, we have a math problem...';\n}\n\nreturn [{\n  json: {\n    ...($input.item.json),\n    extracted: {\n      type: 'invoice',\n      invoiceNumber: invoiceNumber,\n      invoiceDate: dateMatch ? dateMatch[1] : null,\n      dueDate: dueMatch ? dueMatch[1] : null,\n      vendor: vendorMatch ? vendorMatch[1] : 'Unknown',\n      subtotal: subtotal,\n      tax: tax,\n      total: total,\n      items: items,\n      itemCount: items.length\n    },\n    validation: {\n      status: validationStatus,\n      amountMatch: amountMatch,\n      messages: validationMessages,\n      qualityGrade: qualityGrade,\n      tysonComment: tysonComment\n    },\n    processedBy: 'Invoice Engine v3000',\n    processingPath: 'invoice'\n  }\n}];"
+      },
+      "id": "00000000-0000-0000-0000-000000000005",
+      "name": "Process Invoice",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        240
+      ],
+      "notes": "Extracts and validates invoice data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// CONTRACT ANALYSIS ENGINE\n// Extracts key terms and flags potential issues\n\nconst text = $input.item.json.rawText;\nconst lines = text.split('\\n');\n\n// Extract parties\nconst partyAMatch = text.match(/Party A: ([^\\n]+)/);\nconst partyBMatch = text.match(/Party B: ([^\\n]+)/);\n\n// Extract dates\nconst dateMatch = text.match(/entered on ([A-Za-z0-9, ]+)/);\nconst durationMatch = text.match(/Duration: ([^\\n]+)/);\n\n// Extract key terms\nconst termsSection = text.match(/TERMS:([\\s\\S]+?)(?:Note:|Signatures:|$)/);\nconst terms = [];\nif (termsSection) {\n  const termLines = termsSection[1].split('\\n').filter(l => l.trim().match(/^\\d+\\.\\s/));\n  termLines.forEach(line => {\n    const match = line.match(/^\\d+\\.\\s+(.+)$/);\n    if (match) terms.push(match[1].trim());\n  });\n}\n\n// Red Flag Detection (Tyson's Legal Eagle Mode)\nconst redFlags = [];\nconst greenFlags = [];\n\nif (text.toLowerCase().includes('unpaid')) {\n  redFlags.push('\u26a0\ufe0f UNPAID position detected - make sure you\\'re getting value in training!');\n}\nif (text.toLowerCase().includes('confidentiality')) {\n  greenFlags.push('\u2705 Confidentiality clause present - good for protecting work');\n}\nif (text.toLowerCase().includes('termination')) {\n  greenFlags.push('\u2705 Termination terms defined - you have an exit strategy');\n}\nif (text.toLowerCase().includes('ownership')) {\n  const ownershipLine = text.toLowerCase().includes('client owns') ? \n    redFlags.push('\u26a0\ufe0f Client owns all work - standard but be aware') :\n    greenFlags.push('\u2705 Ownership terms clear');\n}\nif (!text.toLowerCase().includes('compensation')) {\n  redFlags.push('\u26a0\ufe0f No compensation mentioned - clarify this!');\n}\n\n// Count boring legalese\nconst legalWords = ['hereby', 'whereas', 'aforementioned', 'heretofore', 'notwithstanding'];\nlet legalWordCount = 0;\nlegalWords.forEach(word => {\n  const regex = new RegExp(word, 'gi');\n  const matches = text.match(regex);\n  if (matches) legalWordCount += matches.length;\n});\n\n// Tyson's Contract Rating\nlet contractRating = 'FAIR';\nlet tysonVerdict = '';\n\nif (redFlags.length === 0 && greenFlags.length >= 3) {\n  contractRating = 'EXCELLENT';\n  tysonVerdict = '\ud83c\udfaf Tyson says: This contract looks solid! Good terms, clear exit, fair deal.';\n} else if (redFlags.length <= 1 && greenFlags.length >= 2) {\n  contractRating = 'GOOD';\n  tysonVerdict = '\ud83d\udc4d Tyson approves! Minor concerns but overall fair.';\n} else if (redFlags.length > 2) {\n  contractRating = 'REVIEW NEEDED';\n  tysonVerdict = '\u26a0\ufe0f Tyson recommends: Get a second opinion before signing!';\n} else {\n  contractRating = 'FAIR';\n  tysonVerdict = '\ud83e\udd14 Standard contract. Read the fine print.';\n}\n\nreturn [{\n  json: {\n    ...($input.item.json),\n    extracted: {\n      type: 'contract',\n      partyA: partyAMatch ? partyAMatch[1] : 'Unknown',\n      partyB: partyBMatch ? partyBMatch[1] : 'Unknown',\n      effectiveDate: dateMatch ? dateMatch[1] : null,\n      duration: durationMatch ? durationMatch[1] : 'Not specified',\n      terms: terms,\n      termCount: terms.length\n    },\n    analysis: {\n      redFlags: redFlags,\n      greenFlags: greenFlags,\n      riskLevel: redFlags.length > 2 ? 'HIGH' : redFlags.length > 0 ? 'MEDIUM' : 'LOW',\n      legalWordCount: legalWordCount,\n      readabilityScore: legalWordCount > 5 ? 'Poor (too much legalese)' : 'Good',\n      contractRating: contractRating,\n      tysonVerdict: tysonVerdict\n    },\n    processedBy: 'Contract Analyzer v3000',\n    processingPath: 'contract'\n  }\n}];"
+      },
+      "id": "00000000-0000-0000-0000-000000000006",
+      "name": "Analyze Contract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        460
+      ],
+      "notes": "Extracts contract terms and detects red flags"
+    },
+    {
+      "parameters": {
+        "jsCode": "// RECEIPT PROCESSING ENGINE\n// Extracts purchase data from receipts\n\nconst text = $input.item.json.rawText;\nconst lines = text.split('\\n');\n\n// Extract merchant\nconst merchantMatch = text.match(/([A-Za-z\\s]+)(?:#\\d+)?\\n/);\nconst merchant = merchantMatch ? merchantMatch[1].trim() : 'Unknown Merchant';\n\n// Extract date and time\nconst dateMatch = text.match(/Date: ([A-Za-z0-9, :APM]+)/);\n\n// Extract cashier\nconst cashierMatch = text.match(/Cashier: ([A-Za-z]+)/);\n\n// Extract line items\nconst itemMatches = text.match(/\\d+x\\s+([^$]+?)\\s+\\$([0-9\\.]+)/g) || [];\nconst items = itemMatches.map(item => {\n  const match = item.match(/\\d+x\\s+([^$]+?)\\s+\\$([0-9\\.]+)/);\n  return {\n    description: match[1].trim(),\n    amount: parseFloat(match[2])\n  };\n});\n\n// Extract totals\nconst subtotalMatch = text.match(/Subtotal:\\s+\\$([0-9\\.]+)/);\nconst taxMatch = text.match(/Tax:\\s+\\$([0-9\\.]+)/);\nconst totalMatch = text.match(/TOTAL:\\s+\\$([0-9\\.]+)/);\n\n// Extract payment method\nconst paymentMatch = text.match(/Paid: ([^\\n]+)/);\n\n// Validation\nconst subtotal = subtotalMatch ? parseFloat(subtotalMatch[1]) : 0;\nconst tax = taxMatch ? parseFloat(taxMatch[1]) : 0;\nconst total = totalMatch ? parseFloat(totalMatch[1]) : 0;\n\n// Tyson's Receipt Analysis\nlet category = 'General';\nlet tysonNote = '';\n\nif (merchant.toLowerCase().includes('coffee') || merchant.toLowerCase().includes('starbucks')) {\n  category = 'Fuel for Coding';\n  tysonNote = '\u2615 Caffeine detected! Essential for automation work.';\n} else if (text.toLowerCase().includes('tyson')) {\n  category = 'Tyson Essentials';\n  tysonNote = '\ud83c\udfaf Items fit for the automation master!';\n} else if (total > 50) {\n  category = 'Big Purchase';\n  tysonNote = '\ud83d\udcb0 Whoa! Big spender today!';\n} else {\n  category = 'Daily Expense';\n  tysonNote = '\ud83d\udcdd Standard purchase logged.';\n}\n\nreturn [{\n  json: {\n    ...($input.item.json),\n    extracted: {\n      type: 'receipt',\n      merchant: merchant,\n      date: dateMatch ? dateMatch[1] : null,\n      cashier: cashierMatch ? cashierMatch[1] : 'Unknown',\n      subtotal: subtotal,\n      tax: tax,\n      total: total,\n      items: items,\n      itemCount: items.length,\n      paymentMethod: paymentMatch ? paymentMatch[1] : 'Unknown'\n    },\n    categorization: {\n      category: category,\n      expenseType: total > 20 ? 'Significant' : 'Minor',\n      tysonNote: tysonNote\n    },\n    processedBy: 'Receipt Processor v3000',\n    processingPath: 'receipt'\n  }\n}];"
+      },
+      "id": "00000000-0000-0000-0000-000000000007",
+      "name": "Process Receipt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        680
+      ],
+      "notes": "Extracts receipt data and categorizes expenses"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "unknown-flag-001",
+              "name": "processingStatus",
+              "value": "NEEDS_REVIEW",
+              "type": "string"
+            },
+            {
+              "id": "unknown-flag-002",
+              "name": "reason",
+              "value": "Document type could not be determined with confidence",
+              "type": "string"
+            },
+            {
+              "id": "unknown-flag-003",
+              "name": "processingPath",
+              "value": "unknown",
+              "type": "string"
+            },
+            {
+              "id": "unknown-flag-004",
+              "name": "tysonNote",
+              "value": "\ud83e\udd37 Even Tyson's AI can't figure this one out. Human review needed!",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "00000000-0000-0000-0000-000000000008",
+      "name": "Flag Unknown Document",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        1120,
+        900
+      ],
+      "notes": "Handles documents that couldn't be classified"
+    },
+    {
+      "parameters": {
+        "jsCode": "// CONFIDENCE SCORING ENGINE\n// Analyzes extraction quality and assigns confidence score\n\nconst data = $input.item.json;\nlet confidenceScore = 0;\nlet scoringFactors = [];\n\n// Base confidence from classification\nif (data.classification && data.classification.confidence) {\n  confidenceScore += data.classification.confidence * 0.4;\n  scoringFactors.push(`Classification: ${data.classification.confidence}% confident`);\n}\n\n// Path-specific scoring\nif (data.processingPath === 'invoice' && data.extracted) {\n  if (data.extracted.invoiceNumber !== 'UNKNOWN') confidenceScore += 15;\n  if (data.extracted.items && data.extracted.items.length > 0) confidenceScore += 15;\n  if (data.validation && data.validation.amountMatch) {\n    confidenceScore += 20;\n    scoringFactors.push('Math validation passed');\n  } else {\n    scoringFactors.push('Math validation failed');\n  }\n  if (data.extracted.vendor !== 'Unknown') confidenceScore += 10;\n}\n\nif (data.processingPath === 'contract' && data.extracted) {\n  if (data.extracted.partyA !== 'Unknown') confidenceScore += 15;\n  if (data.extracted.partyB !== 'Unknown') confidenceScore += 15;\n  if (data.extracted.terms && data.extracted.terms.length >= 3) {\n    confidenceScore += 15;\n    scoringFactors.push(`${data.extracted.terms.length} terms extracted`);\n  }\n  if (data.analysis && data.analysis.riskLevel === 'LOW') {\n    confidenceScore += 15;\n    scoringFactors.push('Low risk assessment');\n  }\n}\n\nif (data.processingPath === 'receipt' && data.extracted) {\n  if (data.extracted.merchant !== 'Unknown Merchant') confidenceScore += 15;\n  if (data.extracted.items && data.extracted.items.length > 0) confidenceScore += 20;\n  if (data.extracted.total > 0) confidenceScore += 15;\n}\n\n// Tyson bonus points\nif (data.classification && data.classification.tysonBonus) {\n  scoringFactors.push(data.classification.tysonBonus);\n}\n\n// Cap at 100\nconfidenceScore = Math.min(Math.round(confidenceScore), 100);\n\nlet confidenceLevel = '';\nif (confidenceScore >= 85) confidenceLevel = 'VERY HIGH';\nelse if (confidenceScore >= 75) confidenceLevel = 'HIGH';\nelse if (confidenceScore >= 60) confidenceLevel = 'MEDIUM';\nelse confidenceLevel = 'LOW';\n\nreturn [{\n  json: {\n    ...data,\n    confidence: {\n      score: confidenceScore,\n      level: confidenceLevel,\n      threshold: 75,\n      autoApprovalEligible: confidenceScore >= 75,\n      scoringFactors: scoringFactors,\n      scoredAt: new Date().toISOString(),\n      scoredBy: \"Tyson's Confidence Engine v3000\"\n    }\n  }\n}];"
+      },
+      "id": "00000000-0000-0000-0000-000000000010",
+      "name": "Calculate Confidence Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        460
+      ],
+      "notes": "Scores extraction quality 0-100"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "conf-check-001",
+              "leftValue": "={{ $json.confidence.score }}",
+              "rightValue": 75,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000011",
+      "name": "Confidence >= 75%?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        460
+      ],
+      "notes": "Auto-approve if confidence high enough"
+    },
+    {
+      "parameters": {
+        "jsCode": "// AUTO-APPROVAL PROCESSOR\n// High confidence documents go straight through\n\nconst data = $input.item.json;\nconst now = new Date();\n\nreturn [{\n  json: {\n    ...data,\n    approval: {\n      status: 'AUTO_APPROVED',\n      approvedAt: now.toISOString(),\n      approvedBy: 'Tyson\\'s Automated System v3000',\n      reason: `Confidence score of ${data.confidence.score}% exceeds threshold of ${data.confidence.threshold}%`,\n      requiresHumanReview: false,\n      nextSteps: [\n        'Document archived to processed folder',\n        'Data exported to database',\n        'Stakeholders notified'\n      ],\n      tysonApproval: '\u2705 AUTO-APPROVED by Tyson\\'s AI - No human needed!'\n    }\n  }\n}];"
+      },
+      "id": "00000000-0000-0000-0000-000000000012",
+      "name": "Auto-Approve",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        360
+      ],
+      "notes": "Processes high-confidence documents automatically"
+    },
+    {
+      "parameters": {
+        "jsCode": "// HUMAN REVIEW QUEUE\n// Low confidence documents need human verification\n\nconst data = $input.item.json;\nconst now = new Date();\n\n// Generate review ticket\nconst ticketId = `REVIEW-${now.getTime()}`;\n\nlet reviewNotes = [];\n\nif (data.confidence.score < 60) {\n  reviewNotes.push('\u26a0\ufe0f Low confidence score - verify all extracted data');\n}\n\nif (data.processingPath === 'invoice' && data.validation && !data.validation.amountMatch) {\n  reviewNotes.push('\u26a0\ufe0f Invoice math doesn\\'t add up - check calculations');\n}\n\nif (data.processingPath === 'contract' && data.analysis && data.analysis.redFlags.length > 0) {\n  reviewNotes.push(`\u26a0\ufe0f ${data.analysis.redFlags.length} red flags detected - review carefully`);\n}\n\nif (data.processingPath === 'unknown') {\n  reviewNotes.push('\u26a0\ufe0f Document type unknown - manual classification needed');\n}\n\nreturn [{\n  json: {\n    ...data,\n    approval: {\n      status: 'PENDING_REVIEW',\n      reviewTicketId: ticketId,\n      createdAt: now.toISOString(),\n      assignedTo: 'Tyson Siruno',\n      priority: data.confidence.score < 50 ? 'HIGH' : 'MEDIUM',\n      reason: `Confidence score of ${data.confidence.score}% below threshold of ${data.confidence.threshold}%`,\n      requiresHumanReview: true,\n      reviewNotes: reviewNotes,\n      estimatedReviewTime: '5-10 minutes',\n      tysonMessage: '\ud83d\udc40 Tyson\\'s AI needs your human wisdom on this one!'\n    }\n  }\n}];"
+      },
+      "id": "00000000-0000-0000-0000-000000000013",
+      "name": "Create Review Ticket",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        560
+      ],
+      "notes": "Creates human review ticket for low confidence docs"
+    },
+    {
+      "parameters": {
+        "jsCode": "// TYSON'S SPECIAL SAUCE\n// Adds personality, Easter eggs, and final touches\n\nconst data = $input.item.json;\nconst now = new Date();\n\n// Random Easter eggs\nconst easterEggs = [\n  '\ud83c\udfaf Processed with the power of 1000 Phoenix suns!',\n  '\ud83d\ude80 This document just got the Tyson treatment!',\n  '\u26a1 Automation level: EXPERT',\n  '\ud83d\udd25 Hotter than a server room in August!',\n  '\ud83c\udfaa Document circus: Tyson is the ringmaster!',\n  '\ud83c\udf1f Quality assured by Tyson\\'s AI Army!'\n];\n\nconst randomEgg = easterEggs[Math.floor(Math.random() * easterEggs.length)];\n\n// Processing stats\nconst startTime = new Date(data.processingStarted);\nconst endTime = now;\nconst processingTimeMs = endTime - startTime;\nconst processingTimeSec = (processingTimeMs / 1000).toFixed(2);\n\n// Fun facts\nlet funFact = '';\nif (data.processingPath === 'invoice') {\n  funFact = `\ud83d\udca1 Fun fact: This invoice has ${data.extracted.itemCount} line items. Tyson\\'s record is 47!`;\n} else if (data.processingPath === 'contract') {\n  funFact = `\ud83d\udca1 Fun fact: This contract has ${data.analysis.legalWordCount} instances of boring legal jargon.`;\n} else if (data.processingPath === 'receipt') {\n  funFact = `\ud83d\udca1 Fun fact: Total expense $${data.extracted.total}. Tyson\\'s coffee budget is higher! \u2615`;\n}\n\n// Achievement unlocked?\nlet achievement = null;\nif (data.confidence.score === 100) {\n  achievement = '\ud83c\udfc6 ACHIEVEMENT UNLOCKED: Perfect Score! Tyson is impressed.';\n} else if (data.classification.tysonBonus) {\n  achievement = '\u2b50 ACHIEVEMENT UNLOCKED: Tyson Name Drop Detected!';\n}\n\nreturn [{\n  json: {\n    ...data,\n    tysonSpecialSauce: {\n      easterEgg: randomEgg,\n      funFact: funFact,\n      achievement: achievement,\n      processingTime: `${processingTimeSec} seconds`,\n      processingSpeed: processingTimeMs < 100 ? 'BLAZING FAST \u26a1' : 'FAST \ud83d\ude80',\n      signature: 'Processed by Tyson\\'s Document Analyzer 3000\u2122',\n      version: '3000.1.0',\n      poweredBy: 'N8N + Tyson\\'s Brain',\n      motto: 'Automating the world, one document at a time!'\n    }\n  }\n}];"
+      },
+      "id": "00000000-0000-0000-0000-000000000015",
+      "name": "Add Tyson's Special Sauce",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2440,
+        460
+      ],
+      "notes": "Easter eggs, personality, and Tyson branding!"
+    },
+    {
+      "parameters": {
+        "jsCode": "// EXECUTIVE SUMMARY GENERATOR\n// Creates human-readable summary of processing\n\nconst data = $input.item.json;\n\n// Build summary\nlet summary = `\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n  TYSON'S INTELLIGENT DOCUMENT ANALYZER 3000\n  ${data.tysonSpecialSauce.easterEgg}\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\nDOCUMENT ID: ${data.documentId}\nUPLOADED BY: ${data.uploadedBy}\nPROCESSED: ${new Date(data.processingStarted).toLocaleString()}\nPROCESSING TIME: ${data.tysonSpecialSauce.processingTime} ${data.tysonSpecialSauce.processingSpeed}\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nCLASSIFICATION RESULTS\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nDocument Type: ${data.classification.documentType.toUpperCase()}\nClassification Confidence: ${data.classification.confidence}%\nReasoning: ${data.classification.reasoning}\n${data.classification.tysonBonus ? data.classification.tysonBonus : ''}\n\n`;\n\n// Path-specific details\nif (data.processingPath === 'invoice' && data.extracted) {\n  summary += `\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nINVOICE DETAILS\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nInvoice Number: ${data.extracted.invoiceNumber}\nVendor: ${data.extracted.vendor}\nDate: ${data.extracted.invoiceDate}\nDue Date: ${data.extracted.dueDate}\n\nFINANCIALS:\n  Subtotal: $${data.extracted.subtotal.toFixed(2)}\n  Tax:      $${data.extracted.tax.toFixed(2)}\n  TOTAL:    $${data.extracted.total.toFixed(2)}\n\nLine Items: ${data.extracted.itemCount}\n${data.extracted.items.map((item, i) => `  ${i+1}. ${item.description} - $${item.amount.toFixed(2)}`).join('\\n')}\n\nVALIDATION:\n  Status: ${data.validation.status.toUpperCase()}\n  Quality Grade: ${data.validation.qualityGrade}\n  ${data.validation.tysonComment}\n${data.validation.messages.length > 0 ? '  Issues:\\n    - ' + data.validation.messages.join('\\n    - ') : ''}\n\n`;\n}\n\nif (data.processingPath === 'contract' && data.extracted) {\n  summary += `\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nCONTRACT ANALYSIS\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nParty A: ${data.extracted.partyA}\nParty B: ${data.extracted.partyB}\nEffective Date: ${data.extracted.effectiveDate}\nDuration: ${data.extracted.duration}\n\nKEY TERMS (${data.extracted.termCount}):\n${data.extracted.terms.map((term, i) => `  ${i+1}. ${term}`).join('\\n')}\n\nRISK ANALYSIS:\n  Risk Level: ${data.analysis.riskLevel}\n  Contract Rating: ${data.analysis.contractRating}\n  Legalese Score: ${data.analysis.legalWordCount} boring words (${data.analysis.readabilityScore})\n  \n  ${data.analysis.tysonVerdict}\n\n${data.analysis.redFlags.length > 0 ? '  \u26a0\ufe0f  RED FLAGS:\\n    ' + data.analysis.redFlags.join('\\n    ') : ''}\n${data.analysis.greenFlags.length > 0 ? '\\n  \u2705 GREEN FLAGS:\\n    ' + data.analysis.greenFlags.join('\\n    ') : ''}\n\n`;\n}\n\nif (data.processingPath === 'receipt' && data.extracted) {\n  summary += `\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nRECEIPT DETAILS\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nMerchant: ${data.extracted.merchant}\nDate: ${data.extracted.date}\nCashier: ${data.extracted.cashier}\nPayment: ${data.extracted.paymentMethod}\n\nPURCHASE SUMMARY:\n  Subtotal: $${data.extracted.subtotal.toFixed(2)}\n  Tax:      $${data.extracted.tax.toFixed(2)}\n  TOTAL:    $${data.extracted.total.toFixed(2)}\n\nItems Purchased: ${data.extracted.itemCount}\n${data.extracted.items.map((item, i) => `  ${i+1}. ${item.description} - $${item.amount.toFixed(2)}`).join('\\n')}\n\nCATEGORIZATION:\n  Category: ${data.categorization.category}\n  Type: ${data.categorization.expenseType}\n  ${data.categorization.tysonNote}\n\n`;\n}\n\n// Confidence & approval\nsummary += `\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nCONFIDENCE ASSESSMENT\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nConfidence Score: ${data.confidence.score}% (${data.confidence.level})\nAuto-Approval Threshold: ${data.confidence.threshold}%\nAuto-Approval Eligible: ${data.confidence.autoApprovalEligible ? 'YES \u2705' : 'NO \u274c'}\n\nScoring Factors:\n${data.confidence.scoringFactors.map(f => `  \u2022 ${f}`).join('\\n')}\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nAPPROVAL STATUS\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nStatus: ${data.approval.status}\n${data.approval.status === 'AUTO_APPROVED' ? data.approval.tysonApproval : data.approval.tysonMessage}\n${data.approval.reviewTicketId ? '\\nReview Ticket: ' + data.approval.reviewTicketId : ''}\n${data.approval.priority ? 'Priority: ' + data.approval.priority : ''}\n${data.approval.reviewNotes && data.approval.reviewNotes.length > 0 ? '\\nReview Notes:\\n' + data.approval.reviewNotes.map(n => `  ${n}`).join('\\n') : ''}\n${data.approval.nextSteps ? '\\nNext Steps:\\n' + data.approval.nextSteps.map(s => `  \u2022 ${s}`).join('\\n') : ''}\n\n`;\n\n// Fun stuff\nif (data.tysonSpecialSauce.funFact) {\n  summary += `${data.tysonSpecialSauce.funFact}\\n`;\n}\n\nif (data.tysonSpecialSauce.achievement) {\n  summary += `${data.tysonSpecialSauce.achievement}\\n`;\n}\n\nsummary += `\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n  ${data.tysonSpecialSauce.signature}\n  ${data.tysonSpecialSauce.motto}\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n`;\n\nreturn [{\n  json: {\n    ...data,\n    executiveSummary: summary,\n    summaryGenerated: true\n  }\n}];"
+      },
+      "id": "00000000-0000-0000-0000-000000000016",
+      "name": "Generate Executive Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2660,
+        460
+      ],
+      "notes": "Creates beautiful human-readable report"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "final-001",
+              "name": "documentId",
+              "value": "={{ $json.documentId }}",
+              "type": "string"
+            },
+            {
+              "id": "final-002",
+              "name": "documentType",
+              "value": "={{ $json.classification.documentType }}",
+              "type": "string"
+            },
+            {
+              "id": "final-003",
+              "name": "confidenceScore",
+              "value": "={{ $json.confidence.score }}",
+              "type": "number"
+            },
+            {
+              "id": "final-004",
+              "name": "approvalStatus",
+              "value": "={{ $json.approval.status }}",
+              "type": "string"
+            },
+            {
+              "id": "final-005",
+              "name": "processingTime",
+              "value": "={{ $json.tysonSpecialSauce.processingTime }}",
+              "type": "string"
+            },
+            {
+              "id": "final-006",
+              "name": "summary",
+              "value": "={{ $json.executiveSummary }}",
+              "type": "string"
+            },
+            {
+              "id": "final-007",
+              "name": "fullData",
+              "value": "={{ $json }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "00000000-0000-0000-0000-000000000017",
+      "name": "Final Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [
+        2880,
+        460
+      ],
+      "notes": "Clean output format for downstream systems"
+    },
+    {
+      "parameters": {
+        "jsCode": "// SAVE RESULTS TO DATABASE (WITH ERROR HANDLING)\n// Stores complete processing results with retry logic\n\nconst { Client } = require('pg');\nconst fs = require('fs').promises;\nconst data = $input.item.json;\n\nconst MAX_RETRIES = 3;\nconst RETRY_DELAY_MS = 1000;\n\nasync function saveToDatabase(retryCount = 0) {\n  const client = new Client({\n    host: 'localhost',\n    port: 5432,\n    database: 'document_analyzer',\n    user: 'tysonsiruno',\n    password: ''\n  });\n\n  try {\n    await client.connect();\n    console.log(`\u2713 Connected to database (attempt ${retryCount + 1})`);\n\n    // Calculate processing time\n    const startTime = new Date(data.processingStarted);\n    const endTime = new Date();\n    const processingTimeMs = endTime - startTime;\n\n    // Prepare data for insertion\n    const insertQuery = `\n      INSERT INTO processed_documents (\n        document_id, file_name, file_type, file_size,\n        document_type, classification_confidence, classification_reasoning,\n        uploaded_by, uploaded_at, processing_time_ms,\n        ocr_used, ocr_confidence, ocr_engine,\n        confidence_score, confidence_level, approval_status, approval_reason,\n        raw_text, extracted_data, validation_results, analysis_results,\n        executive_summary, processing_notes, metadata\n      ) VALUES (\n        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,\n        $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24\n      )\n      ON CONFLICT (document_id) DO UPDATE SET\n        updated_at = NOW(),\n        processing_notes = processed_documents.processing_notes || EXCLUDED.processing_notes\n      RETURNING id;\n    `;\n\n    const values = [\n      data.documentId,\n      data.fileName || 'unknown',\n      data.fileType || 'text/plain',\n      data.fileSize || 0,\n      \n      data.classification?.documentType || 'unknown',\n      data.classification?.confidence || 0,\n      data.classification?.reasoning || '',\n      \n      data.uploadedBy || 'unknown',\n      data.receivedAt || new Date().toISOString(),\n      processingTimeMs,\n      \n      data.ocrProcessing?.used || false,\n      data.ocrProcessing?.confidence || 0,\n      data.ocrProcessing?.engine || null,\n      \n      data.confidence?.score || 0,\n      data.confidence?.level || 'UNKNOWN',\n      data.approval?.status || 'UNKNOWN',\n      data.approval?.reason || '',\n      \n      data.rawText || '',\n      JSON.stringify(data.extracted || {}),\n      JSON.stringify(data.validation || {}),\n      JSON.stringify(data.analysis || {}),\n      \n      data.executiveSummary || '',\n      data.approval?.reviewNotes || [],\n      JSON.stringify(data.metadata || {})\n    ];\n\n    const result = await client.query(insertQuery, values);\n    const recordId = result.rows[0].id;\n\n    // Log metrics\n    await client.query(`\n      INSERT INTO processing_metrics (document_id, metric_name, metric_value, metric_unit)\n      VALUES\n        ($1, 'processing_time', $2, 'milliseconds'),\n        ($1, 'confidence_score', $3, 'percentage'),\n        ($1, 'file_size', $4, 'bytes');\n    `, [data.documentId, processingTimeMs, data.confidence?.score || 0, data.fileSize || 0]);\n\n    // Log audit entry\n    await client.query(`\n      INSERT INTO audit_log (document_id, action, user_name, details)\n      VALUES ($1, $2, $3, $4);\n    `, [\n      data.documentId,\n      'DOCUMENT_PROCESSED',\n      data.uploadedBy || 'system',\n      JSON.stringify({\n        documentType: data.classification?.documentType,\n        approvalStatus: data.approval?.status,\n        confidenceScore: data.confidence?.score,\n        retryCount: retryCount\n      })\n    ]);\n\n    await client.end();\n    console.log(`\u2713 Document saved to database: ${data.documentId} (Record ID: ${recordId})`);\n\n    return {\n      success: true,\n      recordId: recordId,\n      processingTimeMs: processingTimeMs,\n      retryCount: retryCount\n    };\n\n  } catch (error) {\n    await client.end();\n    console.error(`Database save failed (attempt ${retryCount + 1}):`, error.message);\n\n    // Retry logic\n    if (retryCount < MAX_RETRIES) {\n      console.log(`Retrying in ${RETRY_DELAY_MS * (retryCount + 1)}ms...`);\n      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (retryCount + 1)));\n      return await saveToDatabase(retryCount + 1);\n    }\n\n    // Log error to file after max retries\n    const errorLog = {\n      timestamp: new Date().toISOString(),\n      documentId: data.documentId,\n      error: error.message,\n      stack: error.stack,\n      retryCount: retryCount,\n      operation: 'database_save'\n    };\n\n    try {\n      const logPath = '/Users/tysonsiruno/Projects/n8n-production/logs/errors.log';\n      await fs.appendFile(logPath, JSON.stringify(errorLog) + '\\n', 'utf8');\n    } catch (logError) {\n      console.error('Failed to write error log:', logError.message);\n    }\n\n    return {\n      success: false,\n      error: error.message,\n      retryCount: retryCount\n    };\n  }\n}\n\nconst dbResult = await saveToDatabase();\n\nreturn [{\n  json: {\n    ...data,\n    database: {\n      saved: dbResult.success,\n      recordId: dbResult.recordId,\n      savedAt: new Date().toISOString(),\n      processingTimeMs: dbResult.processingTimeMs,\n      error: dbResult.error,\n      retryCount: dbResult.retryCount\n    }\n  }\n}];\n"
+      },
+      "id": "00000000-0000-0000-0000-000000000020",
+      "name": "Save to Database",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3100,
+        460
+      ],
+      "notes": "Saves all processing results to PostgreSQL database"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ARCHIVE FILE TO ORGANIZED STORAGE (WITH ERROR HANDLING)\n// Saves files with retry logic and error recovery\n\nconst fs = require('fs').promises;\nconst path = require('path');\n\nconst data = $input.item.json;\nconst binaryData = $input.item.binary?.data;\n\n// Only archive if there's binary data\nif (!binaryData) {\n  console.log('No binary data to archive, skipping...');\n  return [{ json: data }];\n}\n\nconst MAX_RETRIES = 3;\n\nasync function archiveFile(retryCount = 0) {\n  try {\n    const docType = (data.classification?.documentType || 'unknown').toLowerCase();\n    const approvalStatus = data.approval?.status || 'pending';\n\n    // Map approval status to folder\n    const statusFolder = {\n      'AUTO_APPROVED': 'approved',\n      'PENDING_REVIEW': 'pending',\n      'REJECTED': 'rejected'\n    }[approvalStatus] || 'pending';\n\n    // Build organized path\n    const now = new Date();\n    const year = now.getFullYear();\n    const month = String(now.getMonth() + 1).padStart(2, '0');\n\n    const baseArchivePath = '/Users/tysonsiruno/Projects/n8n-production/archives';\n    const organizedPath = path.join(baseArchivePath, docType, statusFolder, String(year), month);\n\n    // Ensure directory exists\n    await fs.mkdir(organizedPath, { recursive: true });\n\n    // Generate safe filename\n    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');\n    const safeFileName = (data.fileName || 'document').replace(/[^a-zA-Z0-9._-]/g, '_');\n    const archiveFileName = `${timestamp}_${safeFileName}`;\n    const fullPath = path.join(organizedPath, archiveFileName);\n\n    // Save file\n    const fileBuffer = Buffer.from(binaryData.data, 'base64');\n    await fs.writeFile(fullPath, fileBuffer);\n\n    // Save metadata JSON\n    const metadataFileName = archiveFileName.replace(/\\.[^.]+$/, '.meta.json');\n    const metadataPath = path.join(organizedPath, metadataFileName);\n\n    const metadata = {\n      documentId: data.documentId,\n      fileName: data.fileName,\n      fileType: data.fileType,\n      fileSize: data.fileSize,\n      uploadedBy: data.uploadedBy,\n      uploadedAt: data.receivedAt,\n      processedAt: new Date().toISOString(),\n      classification: data.classification,\n      confidence: data.confidence,\n      approval: data.approval,\n      extractedData: data.extracted,\n      executiveSummary: data.executiveSummary,\n      archivePath: fullPath,\n      retryCount: retryCount\n    };\n\n    await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));\n\n    console.log(`\u2713 File archived to: ${fullPath} (attempt ${retryCount + 1})`);\n    console.log(`\u2713 Metadata saved to: ${metadataPath}`);\n\n    return {\n      success: true,\n      path: fullPath,\n      metadataPath: metadataPath,\n      category: `${docType}/${statusFolder}/${year}/${month}`,\n      retryCount: retryCount\n    };\n\n  } catch (error) {\n    console.error(`File archiving failed (attempt ${retryCount + 1}):`, error.message);\n\n    // Retry logic\n    if (retryCount < MAX_RETRIES) {\n      console.log(`Retrying archive in ${1000 * (retryCount + 1)}ms...`);\n      await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));\n      return await archiveFile(retryCount + 1);\n    }\n\n    // Log error after max retries\n    const errorLog = {\n      timestamp: new Date().toISOString(),\n      documentId: data.documentId,\n      error: error.message,\n      stack: error.stack,\n      retryCount: retryCount,\n      operation: 'file_archive'\n    };\n\n    try {\n      const logPath = '/Users/tysonsiruno/Projects/n8n-production/logs/errors.log';\n      await fs.appendFile(logPath, JSON.stringify(errorLog) + '\\n', 'utf8');\n    } catch (logError) {\n      console.error('Failed to write error log:', logError.message);\n    }\n\n    return {\n      success: false,\n      error: error.message,\n      retryCount: retryCount\n    };\n  }\n}\n\nconst archiveResult = await archiveFile();\n\nreturn [{\n  json: {\n    ...data,\n    archive: {\n      saved: archiveResult.success,\n      path: archiveResult.path,\n      metadataPath: archiveResult.metadataPath,\n      category: archiveResult.category,\n      archivedAt: new Date().toISOString(),\n      error: archiveResult.error,\n      retryCount: archiveResult.retryCount\n    }\n  }\n}];\n"
+      },
+      "id": "00000000-0000-0000-0000-000000000021",
+      "name": "Archive File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3320,
+        460
+      ],
+      "notes": "Archives files to organized storage with metadata"
+    },
+    {
+      "parameters": {
+        "jsCode": "// FORMAT WEBHOOK RESPONSE (WITH ERROR HANDLING)\n// Returns clean API response or error response\n\nconst data = $input.item.json;\n\n// Check if there were any errors\nconst hasError = (\n  (data.database?.saved === false) ||\n  (data.archive?.saved === false) ||\n  data.error\n);\n\nif (hasError) {\n  console.log('\u26a0\ufe0f Errors detected during processing');\n\n  const errorResponse = {\n    success: false,\n    documentId: data.documentId,\n    errors: [],\n    partialResults: {\n      classification: data.classification,\n      confidence: data.confidence?.score\n    },\n    timestamp: new Date().toISOString()\n  };\n\n  if (data.database?.saved === false) {\n    errorResponse.errors.push({\n      component: 'database',\n      message: data.database.error || 'Database save failed',\n      retryCount: data.database.retryCount || 0\n    });\n  }\n\n  if (data.archive?.saved === false) {\n    errorResponse.errors.push({\n      component: 'archive',\n      message: data.archive.error || 'File archive failed',\n      retryCount: data.archive.retryCount || 0\n    });\n  }\n\n  console.log('Returning error response');\n  return [{ json: errorResponse }];\n}\n\n// Success response\nconst response = {\n  success: true,\n  documentId: data.documentId,\n  processed: {\n    type: data.classification?.documentType || 'unknown',\n    confidence: data.confidence?.score || 0,\n    approvalStatus: data.approval?.status || 'unknown',\n    processingTime: data.database?.processingTimeMs || 0\n  },\n  results: {\n    extracted: data.extracted || {},\n    validation: data.validation || {},\n    analysis: data.analysis || {}\n  },\n  storage: {\n    database: data.database?.saved || false,\n    databaseRecordId: data.database?.recordId,\n    archive: data.archive?.saved || false,\n    archivePath: data.archive?.category\n  },\n  summary: data.executiveSummary || 'No summary available',\n  message: data.tysonSpecialSauce?.easterEgg || 'Document processed successfully',\n  timestamp: new Date().toISOString()\n};\n\nconsole.log(`\u2713 Webhook response prepared for: ${data.documentId}`);\n\nreturn [{ json: response }];\n"
+      },
+      "id": "00000000-0000-0000-0000-000000000022",
+      "name": "Format Webhook Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3540,
+        460
+      ],
+      "notes": "Formats final response for webhook caller"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ERROR LOGGER\n// Logs failed documents to database and error log\n\nconst { Client } = require('pg');\nconst fs = require('fs').promises;\n\nconst data = $input.item.json;\nconst error = data.error || { message: 'Unknown error' };\n\nconsole.log('\u26a0\ufe0f Processing error detected for:', data.documentId);\n\nasync function logError() {\n  const client = new Client({\n    host: 'localhost',\n    port: 5432,\n    database: 'document_analyzer',\n    user: 'tysonsiruno',\n    password: ''\n  });\n\n  try {\n    await client.connect();\n\n    // Save to failed_documents table\n    await client.query(`\n      INSERT INTO failed_documents (\n        document_id, failure_reason, retry_count, last_error, raw_data\n      ) VALUES ($1, $2, $3, $4, $5)\n    `, [\n      data.documentId,\n      error.message || 'Processing failed',\n      data.database?.retryCount || data.archive?.retryCount || 0,\n      JSON.stringify(error),\n      JSON.stringify(data)\n    ]);\n\n    // Log to audit log\n    await client.query(`\n      INSERT INTO audit_log (document_id, action, user_name, details)\n      VALUES ($1, $2, $3, $4)\n    `, [\n      data.documentId,\n      'PROCESSING_FAILED',\n      data.uploadedBy || 'system',\n      JSON.stringify({\n        error: error.message,\n        retryCount: data.database?.retryCount || 0,\n        failedAt: new Date().toISOString()\n      })\n    ]);\n\n    await client.end();\n    console.log('\u2713 Error logged to database');\n\n  } catch (dbError) {\n    await client.end();\n    console.error('Failed to log to database:', dbError.message);\n  }\n\n  // Also log to file\n  try {\n    const errorLog = {\n      timestamp: new Date().toISOString(),\n      documentId: data.documentId,\n      fileName: data.fileName,\n      uploadedBy: data.uploadedBy,\n      error: error.message,\n      stack: error.stack,\n      fullData: data\n    };\n\n    const logPath = '/Users/tysonsiruno/Projects/n8n-production/logs/errors.log';\n    await fs.appendFile(logPath, JSON.stringify(errorLog) + '\\n', 'utf8');\n    console.log('\u2713 Error logged to file');\n\n  } catch (fileError) {\n    console.error('Failed to write error log file:', fileError.message);\n  }\n}\n\nawait logError();\n\n// Return error response for webhook\nreturn [{\n  json: {\n    success: false,\n    documentId: data.documentId,\n    error: {\n      message: error.message || 'Processing failed',\n      code: 'PROCESSING_ERROR',\n      retryable: true\n    },\n    timestamp: new Date().toISOString()\n  }\n}];\n"
+      },
+      "id": "00000000-0000-0000-0000-000000000023",
+      "name": "Error Logger",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3540,
+        660
+      ],
+      "notes": "Logs errors to database and file, returns error response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// OCR PROCESSING NODE\n// Processes PDFs and images using OCR.space API\n\nconst fileType = $input.item.json.fileType || '';\nconst rawText = $input.item.json.rawText || '';\nconst binaryData = $input.item.binary?.data;\n\n// Check if OCR is needed\nconst needsOCR = (\n  fileType.includes('pdf') ||\n  fileType.includes('image') ||\n  fileType.includes('png') ||\n  fileType.includes('jpg') ||\n  fileType.includes('jpeg') ||\n  rawText.includes('[FILE UPLOADED - OCR PROCESSING NEEDED]')\n);\n\nlet extractedText = rawText;\nlet ocrUsed = false;\nlet ocrConfidence = 0;\n\nif (needsOCR && binaryData) {\n  try {\n    // Call OCR.space API\n    const apiKey = 'K85453107888957'; // From environment\n\n    const response = await $http.request({\n      method: 'POST',\n      url: 'https://api.ocr.space/parse/image',\n      headers: {\n        'apikey': apiKey\n      },\n      formData: {\n        base64Image: 'data:' + fileType + ';base64,' + binaryData.data,\n        language: 'eng',\n        isOverlayRequired: false,\n        detectOrientation: true,\n        scale: true,\n        OCREngine: 2  // OCR Engine 2 is more accurate\n      }\n    });\n\n    if (response.ParsedResults && response.ParsedResults.length > 0) {\n      extractedText = response.ParsedResults[0].ParsedText;\n      ocrUsed = true;\n      ocrConfidence = response.ParsedResults[0].TextOverlay?.Lines?.length || 0;\n\n      // Tyson's bonus: Check for his name in OCR results\n      if (extractedText.toLowerCase().includes('tyson')) {\n        extractedText += '\\n\\n\ud83c\udfaf TYSON FOUND VIA OCR! Nice scanning!';\n      }\n    }\n  } catch (error) {\n    console.log('OCR failed, falling back to text extraction:', error.message);\n    // Fall back to basic text if OCR fails\n    if (binaryData) {\n      try {\n        extractedText = Buffer.from(binaryData.data, 'base64').toString('utf-8');\n      } catch (e) {\n        extractedText = '[OCR FAILED - Manual review needed]';\n      }\n    }\n  }\n}\n\nreturn [{\n  json: {\n    ...($input.item.json),\n    rawText: extractedText,\n    ocr: {\n      used: ocrUsed,\n      confidence: ocrConfidence,\n      engine: 'OCR.space Engine 2',\n      processedAt: new Date().toISOString()\n    }\n  },\n  binary: $input.item.binary\n}];"
+      },
+      "id": "00000000-0000-0000-0000-000000000020",
+      "name": "OCR Processor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        570,
+        460
+      ],
+      "notes": "Processes PDFs and images using OCR.space API"
+    }
+  ],
+  "connections": {
+    "Document Preprocessor": {
+      "main": [
+        [
+          {
+            "node": "OCR Processor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Document Classifier": {
+      "main": [
+        [
+          {
+            "node": "Route by Document Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Document Type": {
+      "main": [
+        [
+          {
+            "node": "Process Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analyze Contract",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Process Receipt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Flag Unknown Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Invoice": {
+      "main": [
+        [
+          {
+            "node": "Calculate Confidence Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Contract": {
+      "main": [
+        [
+          {
+            "node": "Calculate Confidence Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Receipt": {
+      "main": [
+        [
+          {
+            "node": "Calculate Confidence Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flag Unknown Document": {
+      "main": [
+        [
+          {
+            "node": "Calculate Confidence Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Confidence Score": {
+      "main": [
+        [
+          {
+            "node": "Confidence >= 75%?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confidence >= 75%?": {
+      "main": [
+        [
+          {
+            "node": "Auto-Approve",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Review Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-Approve": {
+      "main": [
+        [
+          {
+            "node": "Add Tyson's Special Sauce",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Review Ticket": {
+      "main": [
+        [
+          {
+            "node": "Add Tyson's Special Sauce",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Tyson's Special Sauce": {
+      "main": [
+        [
+          {
+            "node": "Generate Executive Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Executive Summary": {
+      "main": [
+        [
+          {
+            "node": "Final Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Output": {
+      "main": [
+        [
+          {
+            "node": "Save to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Database": {
+      "main": [
+        [
+          {
+            "node": "Archive File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Archive File": {
+      "main": [
+        [
+          {
+            "node": "Format Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: Upload Document": {
+      "main": [
+        [
+          {
+            "node": "Document Preprocessor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR Processor": {
+      "main": [
+        [
+          {
+            "node": "AI Document Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-10-20T00:00:00.000Z",
+  "versionId": "3000"
+}

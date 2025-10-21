@@ -1,0 +1,19 @@
+INVOICE #TEST-001
+Bill To: Tyson Siruno
+123 Test Street
+Phoenix, AZ 85001
+
+Date: January 20, 2025
+Due: February 20, 2025
+
+ITEMS:
+1. Software License - $500.00
+2. Support Services - $250.00
+3. Consultation - $100.00
+
+Subtotal: $850.00
+Tax (8%): $68.00
+TOTAL: $918.00
+
+Payment Terms: Net 30
+Vendor: TestCorp LLC
