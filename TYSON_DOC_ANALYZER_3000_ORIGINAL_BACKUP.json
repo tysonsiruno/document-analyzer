@@ -381,51 +381,31 @@
     },
     {
       "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "db-001",
-              "name": "database",
-              "value": "={{ { \"saved\": false, \"note\": \"Database save disabled - PostgreSQL setup required\", \"savedAt\": $now } }}",
-              "type": "object"
-            }
-          ]
-        },
-        "options": {}
+        "jsCode": "// SAVE RESULTS TO DATABASE (WITH ERROR HANDLING)\n// Stores complete processing results with retry logic\n\nconst { Client } = require('pg');\nconst fs = require('fs').promises;\nconst data = $input.item.json;\n\nconst MAX_RETRIES = 3;\nconst RETRY_DELAY_MS = 1000;\n\nasync function saveToDatabase(retryCount = 0) {\n  const client = new Client({\n    host: 'localhost',\n    port: 5432,\n    database: 'document_analyzer',\n    user: 'tysonsiruno',\n    password: ''\n  });\n\n  try {\n    await client.connect();\n    console.log(`\u2713 Connected to database (attempt ${retryCount + 1})`);\n\n    // Calculate processing time\n    const startTime = new Date(data.processingStarted);\n    const endTime = new Date();\n    const processingTimeMs = endTime - startTime;\n\n    // Prepare data for insertion\n    const insertQuery = `\n      INSERT INTO processed_documents (\n        document_id, file_name, file_type, file_size,\n        document_type, classification_confidence, classification_reasoning,\n        uploaded_by, uploaded_at, processing_time_ms,\n        ocr_used, ocr_confidence, ocr_engine,\n        confidence_score, confidence_level, approval_status, approval_reason,\n        raw_text, extracted_data, validation_results, analysis_results,\n        executive_summary, processing_notes, metadata\n      ) VALUES (\n        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,\n        $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24\n      )\n      ON CONFLICT (document_id) DO UPDATE SET\n        updated_at = NOW(),\n        processing_notes = processed_documents.processing_notes || EXCLUDED.processing_notes\n      RETURNING id;\n    `;\n\n    const values = [\n      data.documentId,\n      data.fileName || 'unknown',\n      data.fileType || 'text/plain',\n      data.fileSize || 0,\n      \n      data.classification?.documentType || 'unknown',\n      data.classification?.confidence || 0,\n      data.classification?.reasoning || '',\n      \n      data.uploadedBy || 'unknown',\n      data.receivedAt || new Date().toISOString(),\n      processingTimeMs,\n      \n      data.ocrProcessing?.used || false,\n      data.ocrProcessing?.confidence || 0,\n      data.ocrProcessing?.engine || null,\n      \n      data.confidence?.score || 0,\n      data.confidence?.level || 'UNKNOWN',\n      data.approval?.status || 'UNKNOWN',\n      data.approval?.reason || '',\n      \n      data.rawText || '',\n      JSON.stringify(data.extracted || {}),\n      JSON.stringify(data.validation || {}),\n      JSON.stringify(data.analysis || {}),\n      \n      data.executiveSummary || '',\n      data.approval?.reviewNotes || [],\n      JSON.stringify(data.metadata || {})\n    ];\n\n    const result = await client.query(insertQuery, values);\n    const recordId = result.rows[0].id;\n\n    // Log metrics\n    await client.query(`\n      INSERT INTO processing_metrics (document_id, metric_name, metric_value, metric_unit)\n      VALUES\n        ($1, 'processing_time', $2, 'milliseconds'),\n        ($1, 'confidence_score', $3, 'percentage'),\n        ($1, 'file_size', $4, 'bytes');\n    `, [data.documentId, processingTimeMs, data.confidence?.score || 0, data.fileSize || 0]);\n\n    // Log audit entry\n    await client.query(`\n      INSERT INTO audit_log (document_id, action, user_name, details)\n      VALUES ($1, $2, $3, $4);\n    `, [\n      data.documentId,\n      'DOCUMENT_PROCESSED',\n      data.uploadedBy || 'system',\n      JSON.stringify({\n        documentType: data.classification?.documentType,\n        approvalStatus: data.approval?.status,\n        confidenceScore: data.confidence?.score,\n        retryCount: retryCount\n      })\n    ]);\n\n    await client.end();\n    console.log(`\u2713 Document saved to database: ${data.documentId} (Record ID: ${recordId})`);\n\n    return {\n      success: true,\n      recordId: recordId,\n      processingTimeMs: processingTimeMs,\n      retryCount: retryCount\n    };\n\n  } catch (error) {\n    await client.end();\n    console.error(`Database save failed (attempt ${retryCount + 1}):`, error.message);\n\n    // Retry logic\n    if (retryCount < MAX_RETRIES) {\n      console.log(`Retrying in ${RETRY_DELAY_MS * (retryCount + 1)}ms...`);\n      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (retryCount + 1)));\n      return await saveToDatabase(retryCount + 1);\n    }\n\n    // Log error to file after max retries\n    const errorLog = {\n      timestamp: new Date().toISOString(),\n      documentId: data.documentId,\n      error: error.message,\n      stack: error.stack,\n      retryCount: retryCount,\n      operation: 'database_save'\n    };\n\n    try {\n      const logPath = '/Users/tysonsiruno/Projects/n8n-production/logs/errors.log';\n      await fs.appendFile(logPath, JSON.stringify(errorLog) + '\\n', 'utf8');\n    } catch (logError) {\n      console.error('Failed to write error log:', logError.message);\n    }\n\n    return {\n      success: false,\n      error: error.message,\n      retryCount: retryCount\n    };\n  }\n}\n\nconst dbResult = await saveToDatabase();\n\nreturn [{\n  json: {\n    ...data,\n    database: {\n      saved: dbResult.success,\n      recordId: dbResult.recordId,\n      savedAt: new Date().toISOString(),\n      processingTimeMs: dbResult.processingTimeMs,\n      error: dbResult.error,\n      retryCount: dbResult.retryCount\n    }\n  }\n}];\n"
       },
       "id": "00000000-0000-0000-0000-000000000020",
-      "name": "Save to Database (Disabled)",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.3,
+      "name": "Save to Database",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         3100,
         460
       ],
-      "notes": "Database save temporarily disabled - requires Postgres node setup"
+      "notes": "Saves all processing results to PostgreSQL database"
     },
     {
       "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "archive-001",
-              "name": "archive",
-              "value": "={{ { \"saved\": false, \"note\": \"File archiving disabled - no file system access in Code nodes\", \"archivedAt\": $now } }}",
-              "type": "object"
-            }
-          ]
-        },
-        "options": {}
+        "jsCode": "// ARCHIVE FILE TO ORGANIZED STORAGE (WITH ERROR HANDLING)\n// Saves files with retry logic and error recovery\n\nconst fs = require('fs').promises;\nconst path = require('path');\n\nconst data = $input.item.json;\nconst binaryData = $input.item.binary?.data;\n\n// Only archive if there's binary data\nif (!binaryData) {\n  console.log('No binary data to archive, skipping...');\n  return [{ json: data }];\n}\n\nconst MAX_RETRIES = 3;\n\nasync function archiveFile(retryCount = 0) {\n  try {\n    const docType = (data.classification?.documentType || 'unknown').toLowerCase();\n    const approvalStatus = data.approval?.status || 'pending';\n\n    // Map approval status to folder\n    const statusFolder = {\n      'AUTO_APPROVED': 'approved',\n      'PENDING_REVIEW': 'pending',\n      'REJECTED': 'rejected'\n    }[approvalStatus] || 'pending';\n\n    // Build organized path\n    const now = new Date();\n    const year = now.getFullYear();\n    const month = String(now.getMonth() + 1).padStart(2, '0');\n\n    const baseArchivePath = '/Users/tysonsiruno/Projects/n8n-production/archives';\n    const organizedPath = path.join(baseArchivePath, docType, statusFolder, String(year), month);\n\n    // Ensure directory exists\n    await fs.mkdir(organizedPath, { recursive: true });\n\n    // Generate safe filename\n    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');\n    const safeFileName = (data.fileName || 'document').replace(/[^a-zA-Z0-9._-]/g, '_');\n    const archiveFileName = `${timestamp}_${safeFileName}`;\n    const fullPath = path.join(organizedPath, archiveFileName);\n\n    // Save file\n    const fileBuffer = Buffer.from(binaryData.data, 'base64');\n    await fs.writeFile(fullPath, fileBuffer);\n\n    // Save metadata JSON\n    const metadataFileName = archiveFileName.replace(/\\.[^.]+$/, '.meta.json');\n    const metadataPath = path.join(organizedPath, metadataFileName);\n\n    const metadata = {\n      documentId: data.documentId,\n      fileName: data.fileName,\n      fileType: data.fileType,\n      fileSize: data.fileSize,\n      uploadedBy: data.uploadedBy,\n      uploadedAt: data.receivedAt,\n      processedAt: new Date().toISOString(),\n      classification: data.classification,\n      confidence: data.confidence,\n      approval: data.approval,\n      extractedData: data.extracted,\n      executiveSummary: data.executiveSummary,\n      archivePath: fullPath,\n      retryCount: retryCount\n    };\n\n    await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));\n\n    console.log(`\u2713 File archived to: ${fullPath} (attempt ${retryCount + 1})`);\n    console.log(`\u2713 Metadata saved to: ${metadataPath}`);\n\n    return {\n      success: true,\n      path: fullPath,\n      metadataPath: metadataPath,\n      category: `${docType}/${statusFolder}/${year}/${month}`,\n      retryCount: retryCount\n    };\n\n  } catch (error) {\n    console.error(`File archiving failed (attempt ${retryCount + 1}):`, error.message);\n\n    // Retry logic\n    if (retryCount < MAX_RETRIES) {\n      console.log(`Retrying archive in ${1000 * (retryCount + 1)}ms...`);\n      await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));\n      return await archiveFile(retryCount + 1);\n    }\n\n    // Log error after max retries\n    const errorLog = {\n      timestamp: new Date().toISOString(),\n      documentId: data.documentId,\n      error: error.message,\n      stack: error.stack,\n      retryCount: retryCount,\n      operation: 'file_archive'\n    };\n\n    try {\n      const logPath = '/Users/tysonsiruno/Projects/n8n-production/logs/errors.log';\n      await fs.appendFile(logPath, JSON.stringify(errorLog) + '\\n', 'utf8');\n    } catch (logError) {\n      console.error('Failed to write error log:', logError.message);\n    }\n\n    return {\n      success: false,\n      error: error.message,\n      retryCount: retryCount\n    };\n  }\n}\n\nconst archiveResult = await archiveFile();\n\nreturn [{\n  json: {\n    ...data,\n    archive: {\n      saved: archiveResult.success,\n      path: archiveResult.path,\n      metadataPath: archiveResult.metadataPath,\n      category: archiveResult.category,\n      archivedAt: new Date().toISOString(),\n      error: archiveResult.error,\n      retryCount: archiveResult.retryCount\n    }\n  }\n}];\n"
       },
       "id": "00000000-0000-0000-0000-000000000021",
-      "name": "Archive File (Disabled)",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.3,
+      "name": "Archive File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         3320,
         460
       ],
-      "notes": "File archiving temporarily disabled - requires Write Binary File node setup"
+      "notes": "Archives files to organized storage with metadata"
     },
     {
       "parameters": {
@@ -443,17 +423,17 @@
     },
     {
       "parameters": {
-        "jsCode": "// ERROR LOGGER (SIMPLIFIED)\n// Returns error response (database logging disabled)\n\nconst data = $input.item.json;\nconst error = data.error || { message: 'Unknown error' };\n\nconsole.log('Processing error detected for:', data.documentId);\nconsole.log('Error:', error.message);\n\n// Return error response for webhook\nreturn [{\n  json: {\n    success: false,\n    documentId: data.documentId,\n    error: {\n      message: error.message || 'Processing failed',\n      code: 'PROCESSING_ERROR',\n      retryable: true,\n      note: 'Error logging to database/file disabled'\n    },\n    timestamp: new Date().toISOString()\n  }\n}];\n"
+        "jsCode": "// ERROR LOGGER\n// Logs failed documents to database and error log\n\nconst { Client } = require('pg');\nconst fs = require('fs').promises;\n\nconst data = $input.item.json;\nconst error = data.error || { message: 'Unknown error' };\n\nconsole.log('\u26a0\ufe0f Processing error detected for:', data.documentId);\n\nasync function logError() {\n  const client = new Client({\n    host: 'localhost',\n    port: 5432,\n    database: 'document_analyzer',\n    user: 'tysonsiruno',\n    password: ''\n  });\n\n  try {\n    await client.connect();\n\n    // Save to failed_documents table\n    await client.query(`\n      INSERT INTO failed_documents (\n        document_id, failure_reason, retry_count, last_error, raw_data\n      ) VALUES ($1, $2, $3, $4, $5)\n    `, [\n      data.documentId,\n      error.message || 'Processing failed',\n      data.database?.retryCount || data.archive?.retryCount || 0,\n      JSON.stringify(error),\n      JSON.stringify(data)\n    ]);\n\n    // Log to audit log\n    await client.query(`\n      INSERT INTO audit_log (document_id, action, user_name, details)\n      VALUES ($1, $2, $3, $4)\n    `, [\n      data.documentId,\n      'PROCESSING_FAILED',\n      data.uploadedBy || 'system',\n      JSON.stringify({\n        error: error.message,\n        retryCount: data.database?.retryCount || 0,\n        failedAt: new Date().toISOString()\n      })\n    ]);\n\n    await client.end();\n    console.log('\u2713 Error logged to database');\n\n  } catch (dbError) {\n    await client.end();\n    console.error('Failed to log to database:', dbError.message);\n  }\n\n  // Also log to file\n  try {\n    const errorLog = {\n      timestamp: new Date().toISOString(),\n      documentId: data.documentId,\n      fileName: data.fileName,\n      uploadedBy: data.uploadedBy,\n      error: error.message,\n      stack: error.stack,\n      fullData: data\n    };\n\n    const logPath = '/Users/tysonsiruno/Projects/n8n-production/logs/errors.log';\n    await fs.appendFile(logPath, JSON.stringify(errorLog) + '\\n', 'utf8');\n    console.log('\u2713 Error logged to file');\n\n  } catch (fileError) {\n    console.error('Failed to write error log file:', fileError.message);\n  }\n}\n\nawait logError();\n\n// Return error response for webhook\nreturn [{\n  json: {\n    success: false,\n    documentId: data.documentId,\n    error: {\n      message: error.message || 'Processing failed',\n      code: 'PROCESSING_ERROR',\n      retryable: true\n    },\n    timestamp: new Date().toISOString()\n  }\n}];\n"
       },
       "id": "00000000-0000-0000-0000-000000000023",
-      "name": "Error Logger (Simplified)",
+      "name": "Error Logger",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         3540,
         660
       ],
-      "notes": "Logs errors to console only - database/file logging disabled"
+      "notes": "Logs errors to database and file, returns error response"
     },
     {
       "parameters": {
